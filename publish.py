@@ -77,32 +77,86 @@ def blur_faces(src, dst):
 NOINDEX = ('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">\n'
            '<meta name="googlebot" content="noindex, nofollow">\n')
 
-# test copy only: the reviewer toolbar hidden, and Microsoft Clarity recording
-TEST_HEAD = """<style>#dev-bar{display:none!important}</style>
-<script type="text/javascript">
+# test copy only: the reviewer toolbar hidden, and Microsoft Clarity, which
+# loads only once a visitor has agreed in the privacy notice below
+TEST_HEAD = """<style>#dev-bar{display:none!important}
+.tc-scrim{position:fixed;inset:0;z-index:2000;background:rgba(5,24,34,.6);display:flex;align-items:center;justify-content:center;padding:16px}
+.tc-box{background:#fff;color:var(--ink,#152b3b);max-width:480px;width:100%;max-height:calc(100vh - 32px);overflow:auto;border-radius:12px;padding:24px;box-shadow:0 20px 50px rgba(5,24,34,.35);font-family:"Poppins","Helvetica Neue",Arial,sans-serif}
+.tc-box h2{font-family:"Rift Soft Bold","Barlow Condensed","Arial Narrow",sans-serif;text-transform:uppercase;font-size:1.6rem;line-height:1.05;margin:0 0 12px}
+.tc-box p{margin:0 0 10px;font-size:.9375rem;line-height:1.55;color:var(--ink-2,#3b4b57)}
+.tc-box a{color:var(--sup-deep,#1f6d95)}
+.tc-tick{display:flex;gap:10px;align-items:flex-start;margin:16px 0;font-size:.9375rem;line-height:1.45;color:var(--ink,#152b3b);cursor:pointer}
+.tc-tick input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--sup-deep,#1f6d95)}
+.tc-go{display:block;width:100%;min-height:50px;border:0;border-radius:999px;background:var(--sup,#29abe2);color:#fff;font:700 1rem "Poppins","Helvetica Neue",Arial,sans-serif;cursor:pointer}
+.tc-go:disabled{opacity:.45;cursor:not-allowed}
+.tc-skip{display:block;margin:12px auto 0;background:none;border:0;color:var(--ink-2,#3b4b57);text-decoration:underline;font:inherit;font-size:.875rem;cursor:pointer}
+</style>
+<script>
+  window.startClarity = function(){
+    if(window.clarityStarted) return; window.clarityStarted = true;
     (function(c,l,a,r,i,t,y){
         c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
         t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
         y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
     })(window, document, "clarity", "script", "yncgjw8udz");
+  };
+  try{ if(localStorage.getItem("sup-test-consent") === "yes") window.startClarity(); }catch(e){}
+</script>
+"""
+
+# the privacy notice, shown once on a visitor's first opening of the site
+CONSENT = """
+<div class="tc-scrim" id="tc" role="dialog" aria-modal="true" aria-labelledby="tc-title" hidden>
+  <div class="tc-box">
+    <h2 id="tc-title">Help us test our new website</h2>
+    <p>This is a test version of the new SUP Bristol website. Bookings made here are not real and no payment is taken.</p>
+    <p>To see how people use it, we record visits with <a href="https://clarity.microsoft.com/terms" target="_blank" rel="noopener">Microsoft Clarity</a>: the pages you view and where you tap, click and scroll. It does not record what you type into forms. Clarity uses cookies, and Microsoft keeps recordings for up to 30 days. We only use them to improve the website.</p>
+    <p>Questions? Email <a href="mailto:hello@supbristol.com">hello@supbristol.com</a>.</p>
+    <label class="tc-tick"><input type="checkbox" id="tc-ok"> <span>I understand my visit will be recorded to help improve the website</span></label>
+    <button class="tc-go" id="tc-go" disabled>Continue</button>
+    <button class="tc-skip" id="tc-skip">Continue without recording</button>
+  </div>
+</div>
+<script>
+(function(){
+  var seen = null;
+  try{ seen = localStorage.getItem("sup-test-consent"); }catch(e){}
+  if(seen) return;
+  var box = document.getElementById("tc"), ok = document.getElementById("tc-ok"), go = document.getElementById("tc-go");
+  box.hidden = false;
+  document.body.style.overflow = "hidden";
+  function done(choice){
+    try{ localStorage.setItem("sup-test-consent", choice); }catch(e){}
+    box.hidden = true; document.body.style.overflow = "";
+    if(choice === "yes"){
+      window.startClarity();
+      try{ window.clarity("set", "page", (location.hash || "#/").split("?")[0]); }catch(e){}
+    }
+  }
+  ok.addEventListener("change", function(){ go.disabled = !ok.checked; });
+  go.addEventListener("click", function(){ if(ok.checked) done("yes"); });
+  document.getElementById("tc-skip").addEventListener("click", function(){ done("no"); });
+  ok.focus();
+})();
 </script>
 """
 
 # after the prototype's own scripts: every tracked action becomes a Clarity
-# event, and each page (the prototype is one URL with #/ routes) a tag
-TEST_TAIL = """
+# event, and each page (the prototype is one URL with #/ routes) a tag.
+# Nothing is sent unless Clarity has been started with consent.
+TEST_TAIL = CONSENT + """
 <script>
 (function(){
   if(typeof window.track === "function"){
     var own = window.track;
     window.track = function(name, params){
-      try{ window.clarity("event", String(name)); }catch(e){}
+      try{ if(window.clarityStarted) window.clarity("event", String(name)); }catch(e){}
       return own.apply(this, arguments);
     };
   }
   function page(){
     var r = (location.hash || "#/").split("?")[0];
-    try{ window.clarity("set", "page", r); }catch(e){}
+    try{ if(window.clarityStarted) window.clarity("set", "page", r); }catch(e){}
   }
   window.addEventListener("hashchange", page);
   page();
