@@ -3,12 +3,14 @@ Publish the prototype's current build to the public test site
 (https://timtrew.github.io/supbristol-test/).
 
 Copies ../SUP Bristol Prototype/dist/supbristol.html in as index.html,
-adds tags asking search engines and AI crawlers not to index it, brings
-across only the image and video files the page actually uses, then
-commits and pushes.
+adds tags asking search engines and AI crawlers not to index it, hides
+the reviewer toolbar, adds Microsoft Clarity (with the prototype's
+tracked actions as Clarity events), brings across only the image and
+video files the page actually uses, then commits and pushes.
 
 Usage (after running build.py and extract_images.py in the prototype):
   py -3 publish.py "what changed"
+  py -3 publish.py --dry          build the files here without pushing
 """
 import os, re, shutil, subprocess, sys
 
@@ -17,6 +19,39 @@ DIST = os.path.join(HERE, "..", "SUP Bristol Prototype", "dist")
 
 NOINDEX = ('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">\n'
            '<meta name="googlebot" content="noindex, nofollow">\n')
+
+# test copy only: the reviewer toolbar hidden, and Microsoft Clarity recording
+TEST_HEAD = """<style>#dev-bar{display:none!important}</style>
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "yncgjw8udz");
+</script>
+"""
+
+# after the prototype's own scripts: every tracked action becomes a Clarity
+# event, and each page (the prototype is one URL with #/ routes) a tag
+TEST_TAIL = """
+<script>
+(function(){
+  if(typeof window.track === "function"){
+    var own = window.track;
+    window.track = function(name, params){
+      try{ window.clarity("event", String(name)); }catch(e){}
+      return own.apply(this, arguments);
+    };
+  }
+  function page(){
+    var r = (location.hash || "#/").split("?")[0];
+    try{ window.clarity("set", "page", r); }catch(e){}
+  }
+  window.addEventListener("hashchange", page);
+  page();
+})();
+</script>
+"""
 
 ROBOTS = """# Test copy of the SUP Bristol prototype: not for search engines or AI.
 User-agent: *
@@ -28,29 +63,39 @@ Disallow: /
 
 
 def main():
-    msg = sys.argv[1] if len(sys.argv) > 1 else "Update test site"
+    args = [a for a in sys.argv[1:] if a != "--dry"]
+    msg = args[0] if args else "Update test site"
     page = open(os.path.join(DIST, "supbristol.html"), encoding="utf-8").read()
     assert page.startswith('<meta charset="utf-8">'), "unexpected start of supbristol.html"
-    page = page.replace('<meta charset="utf-8">\n', '<meta charset="utf-8">\n' + NOINDEX, 1)
+    page = page.replace('<meta charset="utf-8">\n', '<meta charset="utf-8">\n' + NOINDEX + TEST_HEAD, 1)
+    page = page.rstrip() + "\n" + TEST_TAIL
 
-    # start clean so files the page no longer uses are dropped
-    for name in os.listdir(HERE):
-        if name in (".git", "publish.py"):
+    used = sorted(set(re.findall(r'(img/[0-9a-f]+\.[a-z0-9]+|hero\.mp4)', page)))
+
+    # drop media the page no longer uses; files only, as OneDrive can hold
+    # a folder open and refuse to remove it
+    keep = set(os.path.normpath(u) for u in used)
+    for root, _, files in os.walk(HERE):
+        if ".git" in os.path.relpath(root, HERE).split(os.sep):
             continue
-        path = os.path.join(HERE, name)
-        shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+        for f in files:
+            rel = os.path.normpath(os.path.relpath(os.path.join(root, f), HERE))
+            if rel.startswith("img" + os.sep) and rel not in keep:
+                os.remove(os.path.join(HERE, rel))
 
     open(os.path.join(HERE, "index.html"), "w", encoding="utf-8").write(page)
     open(os.path.join(HERE, "robots.txt"), "w", encoding="utf-8").write(ROBOTS)
     open(os.path.join(HERE, ".nojekyll"), "w").close()
 
-    used = sorted(set(re.findall(r'(img/[0-9a-f]+\.[a-z0-9]+|hero\.mp4)', page)))
     for rel in used:
         src = os.path.join(DIST, rel)
         dst = os.path.join(HERE, rel)
         os.makedirs(os.path.dirname(dst) or HERE, exist_ok=True)
         shutil.copy2(src, dst)
     print(f"index.html + {len(used)} media files")
+    if "--dry" in sys.argv:
+        print("dry run: files written, nothing committed or pushed")
+        return
 
     git = lambda *a: subprocess.run(["git", *a], cwd=HERE, check=True)
     git("add", "-A")

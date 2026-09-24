@@ -1,6 +1,14 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
 <meta name="googlebot" content="noindex, nofollow">
+<style>#dev-bar{display:none!important}</style>
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "yncgjw8udz");
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SUP Bristol Prototype</title>
 <link rel="icon" type="image/png" href="img/f60e28f62448.png">
@@ -14133,5 +14141,23 @@ const CMS = (() => {
   const draw = render;
   render = function(){ draw.apply(this, arguments); CMS.after(); };
   render();
+})();
+</script>
+
+<script>
+(function(){
+  if(typeof window.track === "function"){
+    var own = window.track;
+    window.track = function(name, params){
+      try{ window.clarity("event", String(name)); }catch(e){}
+      return own.apply(this, arguments);
+    };
+  }
+  function page(){
+    var r = (location.hash || "#/").split("?")[0];
+    try{ window.clarity("set", "page", r); }catch(e){}
+  }
+  window.addEventListener("hashchange", page);
+  page();
 })();
 </script>
