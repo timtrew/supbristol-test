@@ -217,6 +217,8 @@ def main():
     page = page.rstrip() + "\n" + TEST_TAIL
 
     used = sorted(set(re.findall(r'(img/[0-9a-f]+\.[a-z0-9]+|hero\.mp4)', page)))
+    # a build with its photos still inline would otherwise publish without them
+    assert len(used) > 20, "the build has its images inline: run extract_images.py in the prototype first"
 
     # drop media the page no longer uses; files only, as OneDrive can hold
     # a folder open and refuse to remove it
