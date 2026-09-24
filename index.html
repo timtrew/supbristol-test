@@ -11,7 +11,6 @@
 .tc-tick input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--sup-deep,#1f6d95)}
 .tc-go{display:block;width:100%;min-height:50px;border:0;border-radius:999px;background:var(--sup,#29abe2);color:#fff;font:700 1rem "Poppins","Helvetica Neue",Arial,sans-serif;cursor:pointer}
 .tc-go:disabled{opacity:.45;cursor:not-allowed}
-.tc-skip{display:block;margin:12px auto 0;background:none;border:0;color:var(--ink-2,#3b4b57);text-decoration:underline;font:inherit;font-size:.875rem;cursor:pointer}
 </style>
 <script>
   window.startClarity = function(){
@@ -14167,7 +14166,6 @@ const CMS = (() => {
     <p>Questions? Email <a href="mailto:hello@supbristol.com">hello@supbristol.com</a>.</p>
     <label class="tc-tick"><input type="checkbox" id="tc-ok"> <span>I understand my visit will be recorded to help improve the website</span></label>
     <button class="tc-go" id="tc-go" disabled>Continue</button>
-    <button class="tc-skip" id="tc-skip">Continue without recording</button>
   </div>
 </div>
 <script>
@@ -14188,7 +14186,6 @@ const CMS = (() => {
   }
   ok.addEventListener("change", function(){ go.disabled = !ok.checked; });
   go.addEventListener("click", function(){ if(ok.checked) done("yes"); });
-  document.getElementById("tc-skip").addEventListener("click", function(){ done("no"); });
   ok.focus();
 })();
 </script>
