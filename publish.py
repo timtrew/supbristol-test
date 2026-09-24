@@ -81,7 +81,7 @@ NOINDEX = ('<meta name="robots" content="noindex, nofollow, noarchive, nosnippet
 # loads only once a visitor has agreed in the privacy notice below
 TEST_HEAD = """<style>#dev-bar{display:none!important}
 .tc-scrim{position:fixed;inset:0;z-index:2000;background:rgba(5,24,34,.6);display:flex;align-items:center;justify-content:center;padding:16px}
-.tc-scrim[hidden]{display:none}
+.tc-scrim[hidden],.tc-box[hidden]{display:none}
 .tc-box{background:#fff;color:var(--ink,#152b3b);max-width:480px;width:100%;max-height:calc(100vh - 32px);overflow:auto;border-radius:12px;padding:24px;box-shadow:0 20px 50px rgba(5,24,34,.35);font-family:"Poppins","Helvetica Neue",Arial,sans-serif}
 .tc-box h2{font-family:"Rift Soft Bold","Barlow Condensed","Arial Narrow",sans-serif;text-transform:uppercase;font-size:1.6rem;line-height:1.05;margin:0 0 12px}
 .tc-box p{margin:0 0 10px;font-size:.9375rem;line-height:1.55;color:var(--ink-2,#3b4b57)}
@@ -90,6 +90,12 @@ TEST_HEAD = """<style>#dev-bar{display:none!important}
 .tc-tick input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--sup-deep,#1f6d95)}
 .tc-go{display:block;width:100%;min-height:50px;border:0;border-radius:999px;background:var(--sup,#29abe2);color:#fff;font:700 1rem "Poppins","Helvetica Neue",Arial,sans-serif;cursor:pointer}
 .tc-go:disabled{opacity:.45;cursor:not-allowed}
+.tc-miss{display:grid;gap:6px;margin:12px 0 14px}
+.tc-opt{display:flex;gap:12px;align-items:flex-start;padding:9px 12px;border:1.5px solid var(--line,#d6e1e8);border-radius:10px;cursor:pointer;line-height:1.35}
+.tc-opt:has(input:checked){border-color:var(--sup,#29abe2);background:rgba(41,171,226,.08)}
+.tc-opt input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--sup-deep,#1f6d95)}
+.tc-opt b{display:block;font-size:.9375rem;color:var(--ink,#152b3b)}
+.tc-opt span span{display:block;font-size:.875rem;color:var(--ink-2,#3b4b57)}
 </style>
 <script>
   window.startClarity = function(){
@@ -100,14 +106,21 @@ TEST_HEAD = """<style>#dev-bar{display:none!important}
         y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
     })(window, document, "clarity", "script", "yncgjw8udz");
   };
-  try{ if(localStorage.getItem("sup-test-consent") === "yes") window.startClarity(); }catch(e){}
+  try{
+    if(localStorage.getItem("sup-test-consent") === "yes"){
+      window.startClarity();
+      var m = localStorage.getItem("sup-test-mission");
+      if(m) window.clarity("set", "mission", m);
+    }
+  }catch(e){}
 </script>
 """
 
-# the privacy notice, shown once on a visitor's first opening of the site
+# the privacy notice, then a mission to try, shown once on a visitor's
+# first opening of the site; the mission becomes a Clarity tag to filter by
 CONSENT = """
 <div class="tc-scrim" id="tc" role="dialog" aria-modal="true" aria-labelledby="tc-title" hidden>
-  <div class="tc-box">
+  <div class="tc-box" id="tc-step1">
     <h2 id="tc-title">Help us test our new website</h2>
     <p>This is a test version of the new SUP Bristol website. Bookings made here are not real and no payment is taken.</p>
     <p>To see how people use it, we record visits with <a href="https://clarity.microsoft.com/terms" target="_blank" rel="noopener">Microsoft Clarity</a>: the pages you view and where you tap, click and scroll. It does not record what you type into forms. Clarity uses cookies, and Microsoft keeps recordings for up to 30 days. We only use them to improve the website.</p>
@@ -115,26 +128,50 @@ CONSENT = """
     <label class="tc-tick"><input type="checkbox" id="tc-ok"> <span>I understand my visit will be recorded to help improve the website</span></label>
     <button class="tc-go" id="tc-go" disabled>Continue</button>
   </div>
+  <div class="tc-box" id="tc-step2" hidden>
+    <h2 id="tc-mtitle">Pick a mission</h2>
+    <p>Imagine you are this person and try to do it on the site. Nothing you book is real.</p>
+    <div class="tc-miss" role="radiogroup" aria-labelledby="tc-mtitle">
+      <label class="tc-opt"><input type="radio" name="tc-m" value="evening-for-two"> <span><b>Evening out for two</b><span>You and a friend want to try kayaking one evening after work.</span></span></label>
+      <label class="tc-opt"><input type="radio" name="tc-m" value="group-date-set"> <span><b>Group, date set</b><span>You're booking group paddleboarding. The date and numbers are confirmed.</span></span></label>
+      <label class="tc-opt"><input type="radio" name="tc-m" value="group-no-date"> <span><b>Group, no date yet</b><span>You want group paddleboarding but haven't picked a date.</span></span></label>
+      <label class="tc-opt"><input type="radio" name="tc-m" value="visiting-bristol"> <span><b>Visiting Bristol</b><span>You're in town and want to do something fun tomorrow.</span></span></label>
+      <label class="tc-opt"><input type="radio" name="tc-m" value="family"> <span><b>Family day out</b><span>Two adults and two kids want an activity together.</span></span></label>
+      <label class="tc-opt"><input type="radio" name="tc-m" value="just-looking"> <span><b>Just having a look</b><span>No task in mind. Explore however you like.</span></span></label>
+    </div>
+    <button class="tc-go" id="tc-start" disabled>Start</button>
+  </div>
 </div>
 <script>
 (function(){
-  var seen = null;
-  try{ seen = localStorage.getItem("sup-test-consent"); }catch(e){}
-  if(seen) return;
-  var box = document.getElementById("tc"), ok = document.getElementById("tc-ok"), go = document.getElementById("tc-go");
+  var consent = null, mission = null;
+  try{ consent = localStorage.getItem("sup-test-consent"); mission = localStorage.getItem("sup-test-mission"); }catch(e){}
+  if(consent === "yes" && mission) return;
+  var box = document.getElementById("tc"), s1 = document.getElementById("tc-step1"), s2 = document.getElementById("tc-step2");
+  var ok = document.getElementById("tc-ok"), go = document.getElementById("tc-go"), start = document.getElementById("tc-start");
   box.hidden = false;
   document.body.style.overflow = "hidden";
-  function done(choice){
-    try{ localStorage.setItem("sup-test-consent", choice); }catch(e){}
-    box.hidden = true; document.body.style.overflow = "";
-    if(choice === "yes"){
-      window.startClarity();
-      try{ window.clarity("set", "page", (location.hash || "#/").split("?")[0]); }catch(e){}
-    }
+  function step2(){
+    s1.hidden = true; s2.hidden = false;
+    box.setAttribute("aria-labelledby", "tc-mtitle");
   }
+  if(consent === "yes") step2(); else ok.focus();
   ok.addEventListener("change", function(){ go.disabled = !ok.checked; });
-  go.addEventListener("click", function(){ if(ok.checked) done("yes"); });
-  ok.focus();
+  go.addEventListener("click", function(){
+    if(!ok.checked) return;
+    try{ localStorage.setItem("sup-test-consent", "yes"); }catch(e){}
+    window.startClarity();
+    try{ window.clarity("set", "page", (location.hash || "#/").split("?")[0]); }catch(e){}
+    step2();
+  });
+  s2.addEventListener("change", function(){ start.disabled = !s2.querySelector("input:checked"); });
+  start.addEventListener("click", function(){
+    var picked = s2.querySelector("input:checked");
+    if(!picked) return;
+    try{ localStorage.setItem("sup-test-mission", picked.value); }catch(e){}
+    try{ window.clarity("set", "mission", picked.value); window.clarity("event", "mission-" + picked.value); }catch(e){}
+    box.hidden = true; document.body.style.overflow = "";
+  });
 })();
 </script>
 """
